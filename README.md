@@ -23,6 +23,10 @@
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-22c55e"></a>
 </p>
 
+<p align="center">
+  <img src="docs/images/backtrace-hero.png" width="1200" alt="Backtrace browsing synthetic Codex, Claude Code, Grok Build, and OpenCode sessions">
+</p>
+
 ## Download and install
 
 The current release is **Backtrace 0.1.3 (build 5)** for Apple Silicon Macs running macOS 14 or later.
