@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest a focused improvement or assistant integration.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What workflow is difficult today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the behavior you would like.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: textarea
+    id: provider
+    attributes:
+      label: Provider details
+      description: For a new assistant, include official docs for its executable, history location, and resume command.

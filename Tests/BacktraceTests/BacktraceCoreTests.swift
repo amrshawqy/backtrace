@@ -1,0 +1,219 @@
+import Foundation
+import XCTest
+@testable import Backtrace
+
+final class BacktraceCoreTests: XCTestCase {
+    @MainActor
+    func testAppearancePreferencePersists() throws {
+        let suiteName = "BacktraceTests.Appearance.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let settings = SettingsStore(defaults: defaults)
+        XCTAssertEqual(settings.appearance, .system)
+
+        settings.appearance = .dark
+        XCTAssertEqual(SettingsStore(defaults: defaults).appearance, .dark)
+
+        settings.appearance = .light
+        XCTAssertEqual(SettingsStore(defaults: defaults).appearance, .light)
+    }
+
+    func testSessionDatePresentationNeverDisplaysSeconds() throws {
+        let date = Date(timeIntervalSince1970: 1_784_455_845)
+        let secondsPattern = try NSRegularExpression(pattern: #"\d{1,2}:\d{2}:\d{2}"#)
+
+        for value in [
+            DatePresentation.dateTime(date),
+            DatePresentation.time(date),
+            DatePresentation.fullyQualified(date)
+        ] {
+            let range = NSRange(value.startIndex..., in: value)
+            XCTAssertNil(secondsPattern.firstMatch(in: value, range: range), value)
+        }
+    }
+
+    func testRelativeSessionDatesUseMinutePrecision() {
+        let now = Date(timeIntervalSince1970: 1_784_455_845)
+        XCTAssertEqual(DatePresentation.relative(now.addingTimeInterval(-42), relativeTo: now), "Now")
+        XCTAssertEqual(DatePresentation.relative(now.addingTimeInterval(-125), relativeTo: now), "2 min ago")
+        XCTAssertEqual(DatePresentation.relative(now.addingTimeInterval(3_650), relativeTo: now), "in 1 hr")
+    }
+
+    func testShellQuotingHandlesSpacesAndApostrophes() {
+        XCTAssertEqual("/Users/me/My Project".shellQuoted, "'/Users/me/My Project'")
+        XCTAssertEqual("Sam's repo".shellQuoted, "'Sam'\\''s repo'")
+    }
+
+    func testCodexProviderReadsMetadataAndIndexTitle() throws {
+        let fixture = try FixtureDirectory()
+        let sessions = fixture.url.appendingPathComponent("sessions/2026/07/19", isDirectory: true)
+        try FileManager.default.createDirectory(at: sessions, withIntermediateDirectories: true)
+        let id = "019f-1111-2222-3333-444444444444"
+        let transcript = sessions.appendingPathComponent("rollout-2026-07-19T10-00-00-\(id).jsonl")
+        try """
+        {"timestamp":"2026-07-19T10:00:00.000Z","type":"session_meta","payload":{"id":"\(id)","timestamp":"2026-07-19T10:00:00.000Z","cwd":"/tmp/My Project","model_provider":"openai"}}
+        {"timestamp":"2026-07-19T10:00:01.000Z","type":"event_msg","payload":{"type":"user_message","message":"Build a fast session browser"}}
+        {"timestamp":"2026-07-19T10:00:02.000Z","type":"event_msg","payload":{"type":"agent_message","message":"I will inspect the project."}}
+        """.write(to: transcript, atomically: true, encoding: .utf8)
+        let index = fixture.url.appendingPathComponent("session_index.jsonl")
+        try "{\"id\":\"\(id)\",\"thread_name\":\"Backtrace app\",\"updated_at\":\"2026-07-19T10:00:02Z\"}\n"
+            .write(to: index, atomically: true, encoding: .utf8)
+
+        let provider = CodexProvider(roots: [fixture.url.appendingPathComponent("sessions")], indexURL: index)
+        let value = try XCTUnwrap(provider.sessions().first)
+        XCTAssertEqual(value.sessionID, id)
+        XCTAssertEqual(value.title, "Backtrace app")
+        XCTAssertEqual(value.projectPath, "/tmp/My Project")
+        XCTAssertEqual(value.summary, "Build a fast session browser")
+        XCTAssertEqual(value.resumeCommand, "cd '/tmp/My Project' && codex resume '\(id)'")
+    }
+
+    func testClaudeProviderPrefersCustomTitleAndBuildsScopedResumeCommand() throws {
+        let fixture = try FixtureDirectory()
+        let project = fixture.url.appendingPathComponent("-tmp-client", isDirectory: true)
+        try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
+        let id = "a9c1570b-8550-45ca-b388-8417a7a8bd16"
+        let transcript = project.appendingPathComponent("\(id).jsonl")
+        try """
+        {"type":"user","sessionId":"\(id)","cwd":"/tmp/client","gitBranch":"feature/history","timestamp":"2026-07-18T09:00:00.000Z","message":{"content":"Find the session parser bug"}}
+        {"type":"assistant","sessionId":"\(id)","cwd":"/tmp/client","gitBranch":"feature/history","timestamp":"2026-07-18T09:01:00.000Z","message":{"model":"claude-sonnet","content":[{"type":"text","text":"I found it."}]}}
+        {"type":"ai-title","aiTitle":"Generated title","sessionId":"\(id)"}
+        {"type":"custom-title","customTitle":"parser-investigation","sessionId":"\(id)"}
+        """.write(to: transcript, atomically: true, encoding: .utf8)
+
+        let value = try XCTUnwrap(ClaudeProvider(roots: [fixture.url]).sessions().first)
+        XCTAssertEqual(value.title, "parser-investigation")
+        XCTAssertEqual(value.gitBranch, "feature/history")
+        XCTAssertEqual(value.model, "claude-sonnet")
+        XCTAssertEqual(value.resumeCommand, "cd '/tmp/client' && claude --resume '\(id)'")
+    }
+
+    func testGrokProviderHandlesDirectoryKeyedJSONL() throws {
+        let fixture = try FixtureDirectory()
+        let sessionFolder = fixture.url.appendingPathComponent("f0f46d28-254e-44a4-bc35-fb5b18a67c68", isDirectory: true)
+        try FileManager.default.createDirectory(at: sessionFolder, withIntermediateDirectories: true)
+        let transcript = sessionFolder.appendingPathComponent("events.jsonl")
+        try """
+        {"type":"session_meta","sessionId":"f0f46d28-254e-44a4-bc35-fb5b18a67c68","cwd":"/tmp/grok-project","title":"Grok session","createdAt":"2026-07-17T08:00:00Z"}
+        {"role":"user","content":"Investigate the build"}
+        """.write(to: transcript, atomically: true, encoding: .utf8)
+
+        let value = try XCTUnwrap(GrokProvider(roots: [fixture.url]).sessions().first)
+        XCTAssertEqual(value.title, "Grok session")
+        XCTAssertEqual(value.projectPath, "/tmp/grok-project")
+        XCTAssertEqual(value.resumeCommand, "cd '/tmp/grok-project' && grok --resume 'f0f46d28-254e-44a4-bc35-fb5b18a67c68'")
+    }
+
+    func testOpenCodeLegacyProviderReadsStructuredSession() throws {
+        let fixture = try FixtureDirectory()
+        let sessionRoot = fixture.url.appendingPathComponent("storage/session/global", isDirectory: true)
+        try FileManager.default.createDirectory(at: sessionRoot, withIntermediateDirectories: true)
+        let file = sessionRoot.appendingPathComponent("ses_example.json")
+        try """
+        {"id":"ses_example","directory":"/tmp/open-code","title":"Review architecture","time":{"created":1768062649435,"updated":1768068432003}}
+        """.write(to: file, atomically: true, encoding: .utf8)
+
+        let value = try XCTUnwrap(OpenCodeProvider(root: fixture.url, home: fixture.url).sessions().first)
+        XCTAssertEqual(value.title, "Review architecture")
+        XCTAssertEqual(value.projectPath, "/tmp/open-code")
+        XCTAssertEqual(value.resumeCommand, "cd '/tmp/open-code' && opencode --session 'ses_example'")
+    }
+
+    func testTranscriptLoaderReturnsOnlyConversationMessages() async throws {
+        let fixture = try FixtureDirectory()
+        let file = fixture.url.appendingPathComponent("session.jsonl")
+        try """
+        {"timestamp":"2026-07-19T10:00:00.000Z","type":"session_meta","payload":{"id":"test","cwd":"/tmp"}}
+        {"timestamp":"2026-07-19T10:00:01.000Z","type":"event_msg","payload":{"type":"user_message","message":"Hello"}}
+        {"timestamp":"2026-07-19T10:00:02.000Z","type":"event_msg","payload":{"type":"task_started"}}
+        {"timestamp":"2026-07-19T10:00:03.000Z","type":"event_msg","payload":{"type":"agent_message","message":"Hi there"}}
+        """.write(to: file, atomically: true, encoding: .utf8)
+        let session = AssistantSession(
+            assistant: .codex,
+            sessionID: "test",
+            title: "Test",
+            summary: nil,
+            projectPath: "/tmp",
+            gitBranch: nil,
+            model: nil,
+            createdAt: nil,
+            updatedAt: Date(),
+            messageCount: nil,
+            fileSize: 0,
+            sourceURL: file,
+            sourceFormat: .codexJSONL,
+            isArchived: false
+        )
+
+        let preview = await TranscriptLoader(installations: []).load(session)
+        XCTAssertEqual(preview.entries.map(\.text), ["Hello", "Hi there"])
+        XCTAssertEqual(preview.entries.map(\.role), [.user, .assistant])
+    }
+
+    func testTranscriptLoaderCancelsSupersededJSONLWork() async throws {
+        let fixture = try FixtureDirectory()
+        let file = fixture.url.appendingPathComponent("large-session.jsonl")
+        let metadata = #"{"type":"metadata","payload":{"padding":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}}"# + "\n"
+        let message = #"{"type":"event_msg","payload":{"type":"user_message","message":"Should not be published"}}"# + "\n"
+        try (String(repeating: metadata, count: 100_000) + String(repeating: message, count: 160))
+            .write(to: file, atomically: true, encoding: .utf8)
+
+        let session = AssistantSession(
+            assistant: .codex,
+            sessionID: "cancel-test",
+            title: "Cancellation test",
+            summary: nil,
+            projectPath: "/tmp",
+            gitBranch: nil,
+            model: nil,
+            createdAt: nil,
+            updatedAt: Date(),
+            messageCount: nil,
+            fileSize: 0,
+            sourceURL: file,
+            sourceFormat: .codexJSONL,
+            isArchived: false
+        )
+
+        let task = Task {
+            await TranscriptLoader(installations: []).load(session)
+        }
+        await Task.yield()
+        task.cancel()
+
+        let clock = ContinuousClock()
+        let started = clock.now
+        let preview = await task.value
+        let cancellationLatency = started.duration(to: clock.now)
+
+        XCTAssertTrue(preview.entries.isEmpty)
+        XCTAssertLessThan(cancellationLatency, .seconds(1))
+    }
+
+    func testLiveScannerWhenExplicitlyEnabled() async throws {
+        guard ProcessInfo.processInfo.environment["BACKTRACE_LIVE_TEST"] == "1" else {
+            throw XCTSkip("Set BACKTRACE_LIVE_TEST=1 to scan the current Mac's assistant histories.")
+        }
+
+        let result = await SessionScanner().scan()
+        let counts = Dictionary(grouping: result.sessions, by: \.assistant).mapValues(\.count)
+        print("Backtrace live scan: \(result.installations.map(\.kind.displayName)); session counts: \(counts)")
+        XCTAssertFalse(result.installations.isEmpty)
+        XCTAssertTrue(result.sessions.allSatisfy { !$0.sessionID.isEmpty && !$0.title.isEmpty })
+    }
+}
+
+private final class FixtureDirectory {
+    let url: URL
+
+    init() throws {
+        url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BacktraceTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+    }
+
+    deinit {
+        try? FileManager.default.removeItem(at: url)
+    }
+}
