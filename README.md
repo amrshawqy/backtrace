@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/amrshawqy/backtrace/raw/refs/heads/main/dist/Backtrace.dmg"><strong>Download for macOS</strong></a>
+  <a href="https://github.com/amrshawqy/backtrace/releases/download/v0.1.4/Backtrace.dmg"><strong>Download for macOS</strong></a>
   ·
   <a href="#build-from-source">Build from source</a>
   ·
@@ -34,7 +34,7 @@ The current release is **Backtrace 0.1.4 (build 6)** for Apple Silicon Macs runn
 
 | Download | Use |
 | --- | --- |
-| [**Backtrace.dmg**](https://github.com/amrshawqy/backtrace/raw/refs/heads/main/dist/Backtrace.dmg) | Recommended drag-to-install disk image |
+| [**Backtrace.dmg**](https://github.com/amrshawqy/backtrace/releases/download/v0.1.4/Backtrace.dmg) | Recommended drag-to-install disk image |
 | [Backtrace.app](https://github.com/amrshawqy/backtrace/tree/main/dist/Backtrace.app) | App bundle stored in this repository for inspection and reproducibility |
 
 1. Download and open `Backtrace.dmg`.
