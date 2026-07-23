@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-package:
+    name: Test and package
+    runs-on: macos-15
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Show toolchain
+        run: |
+          swift --version
+          xcodebuild -version
+
+      - name: Verify checked release
+        run: |
+          set -euo pipefail
+
+          app_path="dist/Backtrace.app"
+          dmg_path="dist/Backtrace.dmg"
+          source_info="packaging/Info.plist"
+          app_info="$app_path/Contents/Info.plist"
+
+          plutil -lint "$source_info" "$app_info"
+          cmp "$source_info" "$app_info"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app_info")" = "app.backtrace.desktop"
+          file "$app_path/Contents/MacOS/Backtrace" | grep -q "arm64"
+          codesign --verify --deep --strict --verbose=2 "$app_path"
+          hdiutil verify "$dmg_path"
+
+          expected_sha="$(sed -nE 's/^SHA-256  ([0-9a-f]{64})  Backtrace\.dmg$/\1/p' README.md)"
+          actual_sha="$(shasum -a 256 "$dmg_path" | awk '{print $1}')"
+          test -n "$expected_sha"
+          test "$actual_sha" = "$expected_sha"
+
+      - name: Run tests
+        run: make test
+
+      - name: Rebuild distributable
+        run: make dmg
+
+      - name: Verify rebuilt distributable
+        run: |
+          set -euo pipefail
+
+          app_path="dist/Backtrace.app"
+          dmg_path="dist/Backtrace.dmg"
+          app_info="$app_path/Contents/Info.plist"
+
+          cmp packaging/Info.plist "$app_info"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app_info")" = "app.backtrace.desktop"
+          file "$app_path/Contents/MacOS/Backtrace" | grep -q "arm64"
+          codesign --verify --deep --strict --verbose=2 "$app_path"
+          hdiutil verify "$dmg_path"

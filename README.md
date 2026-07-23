@@ -17,6 +17,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/amrshawqy/backtrace/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/amrshawqy/backtrace/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="macOS 14+" src="https://img.shields.io/badge/macOS-14%2B-111827?logo=apple">
   <img alt="Apple Silicon" src="https://img.shields.io/badge/architecture-Apple%20Silicon-111827">
   <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white">
