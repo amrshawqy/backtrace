@@ -8,6 +8,7 @@ struct SessionDetailView: View {
     @State private var transcript = TranscriptPreview.empty
     @State private var isLoadingTranscript = true
     @State private var transcriptTask: Task<Void, Never>?
+    @State private var isEditingTags = false
 
     var body: some View {
         ScrollView {
@@ -47,34 +48,60 @@ struct SessionDetailView: View {
                 .help("Reveal Transcript in Finder")
             }
         }
+        .sheet(isPresented: $isEditingTags) {
+            SessionTagEditor(session: session)
+                .environmentObject(store)
+        }
     }
 
     private var header: some View {
-        HStack(alignment: .top, spacing: 15) {
-            AssistantIcon(kind: session.assistant, size: 48)
-            VStack(alignment: .leading, spacing: 8) {
-                Text(session.title)
-                    .font(.title2.weight(.semibold))
-                    .textSelection(.enabled)
-                HStack(spacing: 8) {
-                    ProviderBadge(kind: session.assistant)
-                    if session.isArchived {
-                        Label("Archived", systemImage: "archivebox.fill")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.orange)
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 5)
-                            .background(.orange.opacity(0.1), in: Capsule())
+        VStack(alignment: .leading, spacing: 13) {
+            HStack(alignment: .top, spacing: 15) {
+                AssistantIcon(kind: session.assistant, size: 48)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(session.title)
+                        .font(.title2.weight(.semibold))
+                        .textSelection(.enabled)
+                    HStack(spacing: 8) {
+                        ProviderBadge(kind: session.assistant)
+                        if session.isArchived {
+                            Label("Archived", systemImage: "archivebox.fill")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.orange)
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 5)
+                                .background(.orange.opacity(0.1), in: Capsule())
+                        }
+                        HStack(spacing: 3) {
+                            Text("Updated")
+                            SessionDateText(date: session.updatedAt, style: .relative)
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     }
-                    HStack(spacing: 3) {
-                        Text("Updated")
-                        SessionDateText(date: session.updatedAt, style: .relative)
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
                 }
+                Spacer()
             }
-            Spacer()
+
+            HStack(spacing: 7) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(store.tags(for: session)) { tag in
+                            TagPill(tag: tag)
+                        }
+                    }
+                }
+
+                Button {
+                    isEditingTags = true
+                } label: {
+                    Label(store.tags(for: session).isEmpty ? "Add tags" : "Edit tags", systemImage: "plus")
+                        .font(.caption.weight(.medium))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Add or remove tags")
+            }
         }
     }
 

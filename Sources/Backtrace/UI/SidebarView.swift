@@ -3,6 +3,8 @@ import SwiftUI
 struct SidebarView: View {
     @EnvironmentObject private var store: SessionStore
     @EnvironmentObject private var settings: SettingsStore
+    @State private var tagToRename: SessionTag?
+    @State private var tagToDelete: SessionTag?
 
     var body: some View {
         List(selection: $store.selection) {
@@ -37,6 +39,37 @@ struct SidebarView: View {
                         }
                         .tag(SidebarSelection.assistant(installation.kind))
                         .help(installation.version ?? installation.executableURL.path)
+                    }
+                }
+            }
+
+            Section("Tags") {
+                if store.tags.isEmpty {
+                    Label("Add tags from a session", systemImage: "tag")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                } else {
+                    ForEach(store.tags) { tag in
+                        Label {
+                            HStack {
+                                Text(tag.name).lineLimit(1)
+                                Spacer()
+                                CountBadge(value: store.count(for: tag))
+                            }
+                        } icon: {
+                            Image(systemName: "tag.fill")
+                                .foregroundStyle(tag.color.color)
+                        }
+                        .tag(SidebarSelection.tag(tag.id))
+                        .contextMenu {
+                            Button("Rename Tag…") {
+                                tagToRename = tag
+                            }
+                            Divider()
+                            Button("Delete Tag", role: .destructive) {
+                                tagToDelete = tag
+                            }
+                        }
                     }
                 }
             }
@@ -99,6 +132,26 @@ struct SidebarView: View {
             .background(.bar)
         }
         .listStyle(.sidebar)
+        .sheet(item: $tagToRename) { tag in
+            RenameTagSheet(tag: tag)
+                .environmentObject(store)
+        }
+        .alert(
+            tagToDelete.map { "Delete “\($0.name)”?" } ?? "Delete Tag?",
+            isPresented: Binding(
+                get: { tagToDelete != nil },
+                set: { if !$0 { tagToDelete = nil } }
+            ),
+            presenting: tagToDelete
+        ) { tag in
+            Button("Cancel", role: .cancel) {}
+            Button("Delete Tag", role: .destructive) {
+                store.deleteTag(tag)
+                tagToDelete = nil
+            }
+        } message: { tag in
+            Text("This removes the tag from every session. Your assistant histories are not changed.")
+        }
     }
 }
 

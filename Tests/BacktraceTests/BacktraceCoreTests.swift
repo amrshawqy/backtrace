@@ -40,6 +40,42 @@ final class BacktraceCoreTests: XCTestCase {
         XCTAssertEqual(DatePresentation.relative(now.addingTimeInterval(3_650), relativeTo: now), "in 1 hr")
     }
 
+    @MainActor
+    func testSessionTagsPersistMultipleAssignmentsAndStayUnique() throws {
+        let suiteName = "BacktraceTests.Tags.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let session = testSession(id: "tagged-session")
+        let store = SessionStore(settings: SettingsStore(defaults: defaults), defaults: defaults)
+        let important = try XCTUnwrap(
+            store.createTag(named: "Important", color: .orange, assigningTo: session)
+        )
+        let followUp = try XCTUnwrap(
+            store.createTag(named: "Follow Up", color: .blue, assigningTo: session)
+        )
+
+        XCTAssertEqual(Set(store.tags(for: session).map(\.id)), [important.id, followUp.id])
+
+        let duplicate = try XCTUnwrap(
+            store.createTag(named: "  important  ", color: .pink, assigningTo: session)
+        )
+        XCTAssertEqual(duplicate.id, important.id)
+        XCTAssertEqual(store.tags.count, 2)
+
+        let restored = SessionStore(settings: SettingsStore(defaults: defaults), defaults: defaults)
+        XCTAssertEqual(Set(restored.tags(for: session).map(\.name)), ["Follow Up", "Important"])
+
+        restored.toggleTag(important, for: session)
+        XCTAssertEqual(restored.tags(for: session).map(\.id), [followUp.id])
+        restored.deleteTag(followUp)
+        XCTAssertTrue(restored.tags(for: session).isEmpty)
+
+        let finalStore = SessionStore(settings: SettingsStore(defaults: defaults), defaults: defaults)
+        XCTAssertEqual(finalStore.tags.map(\.name), ["Important"])
+        XCTAssertTrue(finalStore.tags(for: session).isEmpty)
+    }
+
     func testShellQuotingHandlesSpacesAndApostrophes() {
         XCTAssertEqual("/Users/me/My Project".shellQuoted, "'/Users/me/My Project'")
         XCTAssertEqual("Sam's repo".shellQuoted, "'Sam'\\''s repo'")
@@ -201,6 +237,25 @@ final class BacktraceCoreTests: XCTestCase {
         print("Backtrace live scan: \(result.installations.map(\.kind.displayName)); session counts: \(counts)")
         XCTAssertFalse(result.installations.isEmpty)
         XCTAssertTrue(result.sessions.allSatisfy { !$0.sessionID.isEmpty && !$0.title.isEmpty })
+    }
+
+    private func testSession(id: String) -> AssistantSession {
+        AssistantSession(
+            assistant: .codex,
+            sessionID: id,
+            title: "Tagged session",
+            summary: nil,
+            projectPath: "/tmp",
+            gitBranch: nil,
+            model: nil,
+            createdAt: nil,
+            updatedAt: Date(),
+            messageCount: nil,
+            fileSize: 0,
+            sourceURL: URL(fileURLWithPath: "/tmp/\(id).jsonl"),
+            sourceFormat: .codexJSONL,
+            isArchived: false
+        )
     }
 }
 

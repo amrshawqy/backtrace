@@ -3,6 +3,7 @@ import Foundation
 enum SidebarSelection: Hashable, Sendable {
     case all
     case assistant(AssistantKind)
+    case tag(UUID)
     case trackedFolder(String)
 }
 

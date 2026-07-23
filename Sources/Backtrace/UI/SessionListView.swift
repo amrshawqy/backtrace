@@ -3,11 +3,13 @@ import SwiftUI
 
 struct SessionListView: View {
     @EnvironmentObject private var store: SessionStore
+    @State private var sessionForTagEditing: AssistantSession?
 
     private var title: String {
         switch store.selection {
         case .all: "Sessions"
         case .assistant(let kind): kind.displayName
+        case .tag(let id): store.tag(withID: id)?.name ?? "Tag"
         case .trackedFolder(let path): URL(fileURLWithPath: path).lastPathComponent
         }
     }
@@ -41,6 +43,9 @@ struct SessionListView: View {
                                 Button(store.isFavorite(session) ? "Unpin Session" : "Pin Session") {
                                     store.toggleFavorite(session)
                                 }
+                                Button("Edit Tags…") {
+                                    sessionForTagEditing = session
+                                }
                                 Divider()
                                 Button("Reveal Transcript in Finder") {
                                     NSWorkspace.shared.activateFileViewerSelecting([session.sourceURL])
@@ -52,7 +57,7 @@ struct SessionListView: View {
             }
         }
         .navigationTitle(title)
-        .searchable(text: $store.searchText, placement: .toolbar, prompt: "Title, folder, branch, or ID")
+        .searchable(text: $store.searchText, placement: .toolbar, prompt: "Title, tag, folder, branch, or ID")
         .toolbar {
             ToolbarItem {
                 Button {
@@ -68,11 +73,15 @@ struct SessionListView: View {
                 .help("Refresh Sessions (⌘R)")
             }
         }
+        .sheet(item: $sessionForTagEditing) { session in
+            SessionTagEditor(session: session)
+                .environmentObject(store)
+        }
     }
 
     private var emptyMessage: String {
         if !store.searchText.isEmpty {
-            return "Try a session title, project folder, branch, model, or session ID."
+            return "Try a session title, tag, project folder, branch, model, or session ID."
         }
         if store.installations.isEmpty {
             return "No supported CLI assistant was detected in your shell or common install locations."
@@ -118,6 +127,19 @@ private struct SessionRow: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
 
+                if !sessionTags.isEmpty {
+                    HStack(spacing: 5) {
+                        ForEach(Array(sessionTags.prefix(3))) { tag in
+                            TagPill(tag: tag, compact: true)
+                        }
+                        if sessionTags.count > 3 {
+                            Text("+\(sessionTags.count - 3)")
+                                .font(.caption2.weight(.medium))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                }
+
                 if let summary = session.summary, summary != session.title {
                     Text(summary)
                         .font(.caption)
@@ -128,5 +150,9 @@ private struct SessionRow: View {
         }
         .padding(.vertical, 6)
         .contentShape(Rectangle())
+    }
+
+    private var sessionTags: [SessionTag] {
+        store.tags(for: session)
     }
 }

@@ -2,6 +2,14 @@
 
 All notable Backtrace changes are documented here. The project follows semantic versioning where practical during early development.
 
+## [0.1.4] - 2026-07-23
+
+### Added
+
+- Persistent, color-coded tags with multiple tags per session.
+- Tag chips in session rows and details, tag-aware search, and sidebar filters with session counts.
+- Tag creation, assignment, renaming, and deletion without modifying assistant history files.
+
 ## [0.1.3] - 2026-07-19
 
 ### Fixed

@@ -29,7 +29,7 @@
 
 ## Download and install
 
-The current release is **Backtrace 0.1.3 (build 5)** for Apple Silicon Macs running macOS 14 or later.
+The current release is **Backtrace 0.1.4 (build 6)** for Apple Silicon Macs running macOS 14 or later.
 
 | Download | Use |
 | --- | --- |
@@ -43,7 +43,7 @@ The current release is **Backtrace 0.1.3 (build 5)** for Apple Silicon Macs runn
 Release checksum:
 
 ```text
-SHA-256  b393958e24eef9d08801275b1865092118e1403b1685002f20848ba097d157bf  Backtrace.dmg
+SHA-256  45ebbe58a506a8d55236021588630c8f344d4b071306b12ab08c5d235724f471  Backtrace.dmg
 ```
 
 Verify it from Terminal with:
@@ -88,7 +88,8 @@ Backtrace turns those scattered local histories into one native browser. Find a 
 - Shows project path, started time, last activity, model, transcript size, and available transcript messages.
 - Displays full date, time, and timezone details when hovering over a timestamp.
 - Copies safely shell-quoted resume commands, including the correct project `cd` when available.
-- Pins important sessions and groups sessions by assistant or tracked project folder.
+- Pins important sessions and groups sessions by assistant, custom tag, or tracked project folder.
+- Adds multiple color-coded tags to any session and filters sessions from the sidebar.
 - Supports restricting results to explicitly tracked folders.
 - Refreshes on launch, every two minutes while open, and manually with `⌘R`.
 - Uses official assistant marks with light and dark appearance support.
@@ -123,7 +124,7 @@ Backtrace works locally:
 - Session discovery and parsing happen on the Mac.
 - No analytics, telemetry, advertising SDK, account, or cloud service is included.
 - Only a bounded conversation preview is kept in memory.
-- Pinned session IDs, tracked folders, and the tracked-folder filter are stored in macOS user defaults.
+- Pinned session IDs, tags, tracked folders, and the tracked-folder filter are stored in macOS user defaults.
 - Copying a resume command writes that command to the system clipboard.
 
 Session transcripts may contain source code, prompts, secrets, or personal information. Do not attach raw histories to public issues. Redact paths, session IDs, credentials, and conversation content before sharing diagnostics.

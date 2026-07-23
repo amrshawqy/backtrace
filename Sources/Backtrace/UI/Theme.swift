@@ -1,5 +1,19 @@
 import SwiftUI
 
+extension TagColor {
+    var color: Color {
+        switch self {
+        case .blue: Color(red: 0.24, green: 0.52, blue: 0.96)
+        case .indigo: Color(red: 0.38, green: 0.40, blue: 0.92)
+        case .purple: Color(red: 0.63, green: 0.38, blue: 0.88)
+        case .pink: Color(red: 0.91, green: 0.34, blue: 0.58)
+        case .orange: Color(red: 0.94, green: 0.49, blue: 0.20)
+        case .green: Color(red: 0.22, green: 0.66, blue: 0.42)
+        case .teal: Color(red: 0.12, green: 0.65, blue: 0.68)
+        }
+    }
+}
+
 extension AssistantKind {
     var color: Color {
         switch self {
