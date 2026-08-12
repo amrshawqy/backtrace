@@ -4,6 +4,8 @@ All notable Backtrace changes are documented here. The project follows semantic 
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-12
+
 ### Added
 
 - Multiple Claude Code config directories in one list, so work and personal histories are searchable together. `~/.claude` and whatever `CLAUDE_CONFIG_DIR` points at are read by default; every other profile is added explicitly in Settings.

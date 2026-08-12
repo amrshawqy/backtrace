@@ -4,8 +4,8 @@ This directory intentionally remains under version control so users can inspect 
 
 ## Current build
 
-- Version: `0.1.3`
-- Build: `5`
+- Version: `0.2.0`
+- Build: `7`
 - Minimum macOS: `14.0`
 - Architecture: Apple Silicon (`arm64`)
 - Signing: ad-hoc
@@ -19,8 +19,8 @@ This directory intentionally remains under version control so users can inspect 
 SHA-256:
 
 ```text
-b393958e24eef9d08801275b1865092118e1403b1685002f20848ba097d157bf  Backtrace.dmg
-475409368e1023a3aaddfab7b2bcfb4f51d423e8b8285f516bb0e06ea894fe54  Backtrace.app/Contents/MacOS/Backtrace
+c485a6b3f73bdf9f0ab4c8b09d58eca9360dafdf8674adb09724c4800fca6692  Backtrace.dmg
+2f9f37a96f3f33b43cb24970235c06d09cb775cf258dceaf1fd19000fcba2a13  Backtrace.app/Contents/MacOS/Backtrace
 ```
 
 Release executables are stripped before signing so compiler metadata does not expose paths from the build machine.

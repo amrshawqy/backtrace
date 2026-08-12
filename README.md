@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/amrshawqy/backtrace/releases/download/v0.1.4/Backtrace.dmg"><strong>Download for macOS</strong></a>
+  <a href="https://github.com/amrshawqy/backtrace/releases/download/v0.2.0/Backtrace.dmg"><strong>Download for macOS</strong></a>
   ·
   <a href="#build-from-source">Build from source</a>
   ·
@@ -30,11 +30,11 @@
 
 ## Download and install
 
-The current release is **Backtrace 0.1.4 (build 6)** for Apple Silicon Macs running macOS 14 or later.
+The current release is **Backtrace 0.2.0 (build 7)** for Apple Silicon Macs running macOS 14 or later.
 
 | Download | Use |
 | --- | --- |
-| [**Backtrace.dmg**](https://github.com/amrshawqy/backtrace/releases/download/v0.1.4/Backtrace.dmg) | Recommended drag-to-install disk image |
+| [**Backtrace.dmg**](https://github.com/amrshawqy/backtrace/releases/download/v0.2.0/Backtrace.dmg) | Recommended drag-to-install disk image |
 | [Backtrace.app](https://github.com/amrshawqy/backtrace/tree/main/dist/Backtrace.app) | App bundle stored in this repository for inspection and reproducibility |
 
 1. Download and open `Backtrace.dmg`.
@@ -44,7 +44,7 @@ The current release is **Backtrace 0.1.4 (build 6)** for Apple Silicon Macs runn
 Release checksum:
 
 ```text
-SHA-256  45ebbe58a506a8d55236021588630c8f344d4b071306b12ab08c5d235724f471  Backtrace.dmg
+SHA-256  c485a6b3f73bdf9f0ab4c8b09d58eca9360dafdf8674adb09724c4800fca6692  Backtrace.dmg
 ```
 
 Verify it from Terminal with:
