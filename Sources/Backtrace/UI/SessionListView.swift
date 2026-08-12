@@ -11,6 +11,8 @@ struct SessionListView: View {
         case .assistant(let kind): kind.displayName
         case .tag(let id): store.tag(withID: id)?.name ?? "Tag"
         case .trackedFolder(let path): URL(fileURLWithPath: path).lastPathComponent
+        case .claudeConfigDirectory(let path):
+            store.claudeConfigDirectories.first { $0.id == path }?.name ?? "Claude Code Profile"
         }
     }
 

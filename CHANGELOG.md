@@ -2,6 +2,21 @@
 
 All notable Backtrace changes are documented here. The project follows semantic versioning where practical during early development.
 
+## [Unreleased]
+
+### Added
+
+- Multiple Claude Code config directories in one list, so work and personal histories are searchable together. `~/.claude` and whatever `CLAUDE_CONFIG_DIR` points at are read by default; every other profile is added explicitly in Settings.
+- A Settings section listing each config directory with its origin and session count, plus add, remove, and restore. Directories are added by typing a path, which is checked as it is typed and resolves `~`, bare names, quotes, and a trailing `projects` folder.
+- A "Claude Code Profiles" sidebar section, shown once a second config directory exists, with per-profile session counts.
+- A "Claude Code profile" field in session details for sessions outside the default directory.
+
+### Fixed
+
+- Sessions no longer disappear when `CLAUDE_CONFIG_DIR` moves the config directory. The variable was previously read from the app's own environment, which is empty when Backtrace is launched from Finder or the Dock.
+- Resume commands for sessions outside the default config directory now set `CLAUDE_CONFIG_DIR`, so Claude Code can find the session instead of reporting it as missing.
+- `CODEX_HOME` is resolved through the login shell as well, for the same reason.
+
 ## [0.1.4] - 2026-07-23
 
 ### Added

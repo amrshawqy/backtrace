@@ -56,7 +56,7 @@ enum AssistantKind: String, CaseIterable, Codable, Hashable, Identifiable, Senda
     func defaultHistoryRoots(home: URL) -> [URL] {
         switch self {
         case .codex:
-            let codexHome = ProcessInfo.processInfo.environment["CODEX_HOME"]
+            let codexHome = LoginShellEnvironment.value(for: "CODEX_HOME")
                 .map { URL(fileURLWithPath: $0, isDirectory: true) }
                 ?? home.appendingPathComponent(".codex", isDirectory: true)
             return [
@@ -64,10 +64,7 @@ enum AssistantKind: String, CaseIterable, Codable, Hashable, Identifiable, Senda
                 codexHome.appendingPathComponent("archived_sessions", isDirectory: true)
             ]
         case .claude:
-            let claudeHome = ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"]
-                .map { URL(fileURLWithPath: $0, isDirectory: true) }
-                ?? home.appendingPathComponent(".claude", isDirectory: true)
-            return [claudeHome.appendingPathComponent("projects", isDirectory: true)]
+            return ClaudeConfigDirectories.resolve(home: home).map(\.projectsRoot)
         case .grok:
             return [home.appendingPathComponent(".grok/sessions", isDirectory: true)]
         case .openCode:

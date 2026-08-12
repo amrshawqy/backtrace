@@ -7,9 +7,17 @@ struct SessionScanner: Sendable {
         self.home = home
     }
 
-    func scan() async -> ScanResult {
+    func scan(
+        addedClaudeConfigDirectories: [String] = [],
+        hiddenClaudeConfigDirectories: Set<String> = []
+    ) async -> ScanResult {
         await Task.detached(priority: .userInitiated) {
             let installations = InstallationDetector(home: home).detectAll()
+            let claudeConfigDirectories = ClaudeConfigDirectories.resolve(
+                home: home,
+                added: addedClaudeConfigDirectories,
+                hidden: hiddenClaudeConfigDirectories
+            )
             var allSessions: [AssistantSession] = []
             var warnings: [String] = []
 
@@ -19,7 +27,7 @@ struct SessionScanner: Sendable {
                 case .codex:
                     provider = CodexProvider(home: home)
                 case .claude:
-                    provider = ClaudeProvider(home: home)
+                    provider = ClaudeProvider(configDirectories: claudeConfigDirectories)
                 case .grok:
                     provider = GrokProvider(home: home)
                 case .openCode:
@@ -44,6 +52,7 @@ struct SessionScanner: Sendable {
             return ScanResult(
                 installations: installations.sorted { $0.kind.displayName < $1.kind.displayName },
                 sessions: newestByID.values.sorted { $0.updatedAt > $1.updatedAt },
+                claudeConfigDirectories: claudeConfigDirectories,
                 warnings: warnings
             )
         }.value

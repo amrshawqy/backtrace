@@ -5,6 +5,7 @@ enum SidebarSelection: Hashable, Sendable {
     case assistant(AssistantKind)
     case tag(UUID)
     case trackedFolder(String)
+    case claudeConfigDirectory(String)
 }
 
 struct TrackedFolder: Codable, Identifiable, Hashable, Sendable {

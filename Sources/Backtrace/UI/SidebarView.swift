@@ -43,6 +43,25 @@ struct SidebarView: View {
                 }
             }
 
+            if store.claudeConfigDirectories.count > 1 {
+                Section("Claude Code Profiles") {
+                    ForEach(store.claudeConfigDirectories) { directory in
+                        Label {
+                            HStack {
+                                Text(directory.name).lineLimit(1)
+                                Spacer()
+                                CountBadge(value: store.count(in: directory))
+                            }
+                        } icon: {
+                            Image(systemName: "person.crop.circle")
+                                .foregroundStyle(AssistantKind.claude.color)
+                        }
+                        .tag(SidebarSelection.claudeConfigDirectory(directory.id))
+                        .help(directory.url.path)
+                    }
+                }
+            }
+
             Section("Tags") {
                 if store.tags.isEmpty {
                     Label("Add tags from a session", systemImage: "tag")

@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject private var store: SessionStore
     @EnvironmentObject private var settings: SettingsStore
+    @State private var isAddingConfigDirectory = false
 
     var body: some View {
         TabView {
@@ -39,6 +40,36 @@ struct SettingsView: View {
                             }
                         }
                     }
+                }
+
+                Section {
+                    ForEach(store.claudeConfigDirectories) { directory in
+                        ClaudeConfigDirectoryRow(directory: directory)
+                    }
+
+                    Button {
+                        isAddingConfigDirectory = true
+                    } label: {
+                        Label("Add Directory…", systemImage: "plus")
+                    }
+
+                    if !settings.hiddenClaudeConfigDirectories.isEmpty {
+                        Button {
+                            settings.restoreHiddenClaudeConfigDirectories()
+                            Task { await store.refresh() }
+                        } label: {
+                            Label(
+                                "Restore \(settings.hiddenClaudeConfigDirectories.count) Hidden",
+                                systemImage: "arrow.uturn.backward"
+                            )
+                        }
+                    }
+                } header: {
+                    Text("Claude Code config directories")
+                } footer: {
+                    Text("Claude Code reads one config directory at a time. Add the ones you use and Backtrace reads them together, setting `CLAUDE_CONFIG_DIR` in the resume command for any session outside the default directory. Backtrace reads only the directories listed here.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 Section {
@@ -99,5 +130,147 @@ struct SettingsView: View {
             .tabItem { Label("Folders", systemImage: "folder") }
         }
         .frame(width: 590, height: 450)
+        .sheet(isPresented: $isAddingConfigDirectory) {
+            AddClaudeConfigDirectorySheet()
+                .environmentObject(store)
+                .environmentObject(settings)
+        }
+    }
+}
+
+private struct AddClaudeConfigDirectorySheet: View {
+    @EnvironmentObject private var store: SessionStore
+    @EnvironmentObject private var settings: SettingsStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var path = ""
+    @FocusState private var isFieldFocused: Bool
+
+    private var validation: ClaudeConfigDirectoryValidation {
+        ClaudeConfigDirectories.validate(
+            path,
+            home: FileManager.default.homeDirectoryForCurrentUser,
+            existing: store.claudeConfigDirectories
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Add a Claude Code config directory")
+                    .font(.headline)
+                Text("Type the path `CLAUDE_CONFIG_DIR` points at. It is the folder that contains `projects`.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            TextField("~/.claude-work", text: $path)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(.body, design: .monospaced))
+                .focused($isFieldFocused)
+                .onSubmit(add)
+
+            Label {
+                Text(validation.message ?? resolvedPathDescription)
+                    .fixedSize(horizontal: false, vertical: true)
+            } icon: {
+                Image(systemName: statusSymbol)
+            }
+            .font(.caption)
+            .foregroundStyle(statusColor)
+            .frame(minHeight: 30, alignment: .top)
+
+            HStack {
+                Spacer()
+                Button("Cancel", role: .cancel) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button("Add Directory", action: add)
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(validation.url == nil)
+            }
+        }
+        .padding(20)
+        .frame(width: 430)
+        .onAppear { isFieldFocused = true }
+    }
+
+    private var resolvedPathDescription: String {
+        if case .accepted(let url, _) = validation {
+            return "Backtrace will read \(url.path)."
+        }
+        return "Paths starting with ~ or a bare name resolve inside your home folder."
+    }
+
+    private var statusSymbol: String {
+        switch validation {
+        case .empty: "info.circle"
+        case .rejected: "exclamationmark.triangle.fill"
+        case .accepted(_, let note): note == nil ? "checkmark.circle.fill" : "exclamationmark.circle.fill"
+        }
+    }
+
+    private var statusColor: Color {
+        switch validation {
+        case .empty: .secondary
+        case .rejected: .red
+        case .accepted(_, let note): note == nil ? .green : .orange
+        }
+    }
+
+    private func add() {
+        guard let url = validation.url else { return }
+        settings.addClaudeConfigDirectory(url)
+        dismiss()
+        Task { await store.refresh() }
+    }
+}
+
+private struct ClaudeConfigDirectoryRow: View {
+    @EnvironmentObject private var store: SessionStore
+    @EnvironmentObject private var settings: SettingsStore
+    let directory: ClaudeConfigDirectory
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "person.crop.circle")
+                .foregroundStyle(AssistantKind.claude.color)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(directory.name)
+                    Text(directory.source.displayName)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.quaternary.opacity(0.7), in: Capsule())
+                }
+                Text(directory.url.path)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            Spacer()
+            if directory.exists {
+                Text("\(store.count(in: directory)) sessions")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            } else {
+                Label("Not found", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .help("This folder no longer exists.")
+            }
+            Button {
+                settings.removeClaudeConfigDirectory(directory)
+                Task { await store.refresh() }
+            } label: {
+                Image(systemName: "minus.circle.fill")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help(directory.source == .added ? "Stop reading this directory" : "Hide this directory")
+        }
     }
 }

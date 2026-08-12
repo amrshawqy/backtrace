@@ -107,22 +107,215 @@ final class BacktraceCoreTests: XCTestCase {
 
     func testClaudeProviderPrefersCustomTitleAndBuildsScopedResumeCommand() throws {
         let fixture = try FixtureDirectory()
-        let project = fixture.url.appendingPathComponent("-tmp-client", isDirectory: true)
-        try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
         let id = "a9c1570b-8550-45ca-b388-8417a7a8bd16"
-        let transcript = project.appendingPathComponent("\(id).jsonl")
-        try """
-        {"type":"user","sessionId":"\(id)","cwd":"/tmp/client","gitBranch":"feature/history","timestamp":"2026-07-18T09:00:00.000Z","message":{"content":"Find the session parser bug"}}
-        {"type":"assistant","sessionId":"\(id)","cwd":"/tmp/client","gitBranch":"feature/history","timestamp":"2026-07-18T09:01:00.000Z","message":{"model":"claude-sonnet","content":[{"type":"text","text":"I found it."}]}}
-        {"type":"ai-title","aiTitle":"Generated title","sessionId":"\(id)"}
-        {"type":"custom-title","customTitle":"parser-investigation","sessionId":"\(id)"}
-        """.write(to: transcript, atomically: true, encoding: .utf8)
+        try fixture.writeClaudeSession(id: id, configDirectory: ".claude")
 
-        let value = try XCTUnwrap(ClaudeProvider(roots: [fixture.url]).sessions().first)
+        let directory = ClaudeConfigDirectory(
+            url: fixture.url.appendingPathComponent(".claude", isDirectory: true),
+            source: .defaultLocation,
+            isDefault: true
+        )
+        let value = try XCTUnwrap(ClaudeProvider(configDirectories: [directory]).sessions().first)
         XCTAssertEqual(value.title, "parser-investigation")
         XCTAssertEqual(value.gitBranch, "feature/history")
         XCTAssertEqual(value.model, "claude-sonnet")
         XCTAssertEqual(value.resumeCommand, "cd '/tmp/client' && claude --resume '\(id)'")
+    }
+
+    func testClaudeProviderReadsEveryProfileAndScopesResumeToItsConfigDirectory() throws {
+        let fixture = try FixtureDirectory()
+        let defaultID = "a9c1570b-8550-45ca-b388-8417a7a8bd16"
+        let workID = "b1d2570b-8550-45ca-b388-8417a7a8bd17"
+        try fixture.writeClaudeSession(id: defaultID, configDirectory: ".claude")
+        try fixture.writeClaudeSession(id: workID, configDirectory: ".claude-work")
+
+        let workURL = fixture.url.appendingPathComponent(".claude-work", isDirectory: true)
+        let provider = ClaudeProvider(configDirectories: [
+            ClaudeConfigDirectory(
+                url: fixture.url.appendingPathComponent(".claude", isDirectory: true),
+                source: .defaultLocation,
+                isDefault: true
+            ),
+            ClaudeConfigDirectory(url: workURL, source: .added, isDefault: false)
+        ])
+
+        let sessions = try provider.sessions()
+        XCTAssertEqual(Set(sessions.map(\.sessionID)), [defaultID, workID])
+
+        let work = try XCTUnwrap(sessions.first { $0.sessionID == workID })
+        XCTAssertEqual(work.configDirectory?.name, "work")
+        XCTAssertEqual(
+            work.resumeCommand,
+            "cd '/tmp/client' && CLAUDE_CONFIG_DIR=\(workURL.path.shellQuoted) claude --resume '\(workID)'"
+        )
+        XCTAssertTrue(work.searchableText.contains("work"))
+    }
+
+    func testClaudeConfigDirectoriesOnlyResolveTheDefaultAndExplicitlyAddedPaths() throws {
+        let fixture = try FixtureDirectory()
+        let manager = FileManager.default
+        // A second profile sitting in the home directory stays invisible until
+        // it is added by hand. Backtrace does not go looking for it.
+        for name in [".claude", ".claude-work"] {
+            try manager.createDirectory(
+                at: fixture.url.appendingPathComponent("\(name)/projects", isDirectory: true),
+                withIntermediateDirectories: true
+            )
+        }
+
+        func resolve(added: [String] = [], hidden: Set<String> = []) -> [ClaudeConfigDirectory] {
+            // Ignore whatever this Mac's own shell points at.
+            ClaudeConfigDirectories.resolve(home: fixture.url, added: added, hidden: hidden)
+                .filter { $0.url.path.hasPrefix(fixture.url.path) }
+        }
+
+        let untouched = resolve()
+        XCTAssertEqual(untouched.map(\.name), ["Default"])
+        XCTAssertEqual(untouched.map(\.source), [.defaultLocation])
+        XCTAssertTrue(untouched.allSatisfy(\.isDefault))
+        XCTAssertEqual(
+            untouched.first?.projectsRoot.path,
+            fixture.url.appendingPathComponent(".claude/projects").path
+        )
+
+        let work = fixture.url.appendingPathComponent(".claude-work", isDirectory: true)
+        let elsewhere = fixture.url.appendingPathComponent("elsewhere/claude", isDirectory: true)
+        // An added directory is trusted even before it holds any projects, and
+        // adding the default one again must not duplicate it.
+        let withAdded = resolve(added: [
+            work.path,
+            elsewhere.path,
+            fixture.url.appendingPathComponent(".claude", isDirectory: true).path
+        ])
+        XCTAssertEqual(withAdded.map(\.name), ["Default", "work", "claude"])
+        XCTAssertEqual(withAdded.map(\.source), [.defaultLocation, .added, .added])
+        XCTAssertEqual(withAdded.map(\.isDefault), [true, false, false])
+
+        let withHidden = resolve(
+            added: [work.path],
+            hidden: [fixture.url.appendingPathComponent(".claude", isDirectory: true).path]
+        )
+        XCTAssertEqual(withHidden.map(\.name), ["work"])
+    }
+
+    func testClaudeConfigDirectoryPathInputAcceptsTheWaysPeopleTypeAPath() throws {
+        let fixture = try FixtureDirectory()
+        let manager = FileManager.default
+        let work = fixture.url.appendingPathComponent(".claude-work", isDirectory: true)
+        try manager.createDirectory(
+            at: work.appendingPathComponent("projects", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+
+        func validate(_ input: String) -> ClaudeConfigDirectoryValidation {
+            ClaudeConfigDirectories.validate(input, home: fixture.url, existing: [])
+        }
+
+        for input in [
+            work.path,
+            "  \(work.path)  ",
+            "\(work.path)/",
+            "'\(work.path)'",
+            "\"\(work.path)\"",
+            // Pointing at the transcripts resolves back to their parent.
+            "\(work.path)/projects",
+            // Bare names and tildes resolve inside the home directory.
+            ".claude-work"
+        ] {
+            XCTAssertEqual(validate(input), .accepted(work, note: nil), "input: \(input)")
+        }
+
+        let real = ClaudeConfigDirectories.validate(
+            "~/.claude",
+            home: FileManager.default.homeDirectoryForCurrentUser,
+            existing: []
+        )
+        XCTAssertEqual(
+            real.url?.path,
+            FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude").path
+        )
+    }
+
+    func testClaudeConfigDirectoryPathInputExplainsEveryRejection() throws {
+        let fixture = try FixtureDirectory()
+        let manager = FileManager.default
+        let unused = fixture.url.appendingPathComponent(".claude-unused", isDirectory: true)
+        try manager.createDirectory(at: unused, withIntermediateDirectories: true)
+        let file = fixture.url.appendingPathComponent("notes.txt")
+        try "text".write(to: file, atomically: true, encoding: .utf8)
+
+        let listed = ClaudeConfigDirectory(
+            url: fixture.url.appendingPathComponent(".claude", isDirectory: true),
+            source: .defaultLocation,
+            isDefault: true
+        )
+        func validate(_ input: String) -> ClaudeConfigDirectoryValidation {
+            ClaudeConfigDirectories.validate(input, home: fixture.url, existing: [listed])
+        }
+
+        XCTAssertEqual(validate(""), .empty)
+        XCTAssertEqual(validate("   \n "), .empty)
+        XCTAssertEqual(validate("/"), .rejected("Choose a Claude Code config directory, not the whole disk."))
+        XCTAssertEqual(
+            validate(listed.url.path),
+            .rejected("Already listed as “Default” (Default).")
+        )
+        XCTAssertEqual(validate(file.path), .rejected("That path is a file, not a folder."))
+        XCTAssertEqual(
+            validate("/nowhere/at/all"),
+            .rejected("Nothing exists at /nowhere/at/all.")
+        )
+
+        // A real folder that Claude Code has never written to is still usable,
+        // but says up front that it holds nothing.
+        let empty = validate(unused.path)
+        XCTAssertEqual(empty.url, unused)
+        XCTAssertFalse(empty.isRejected)
+        XCTAssertNotNil(empty.message)
+    }
+
+    @MainActor
+    func testClaudeConfigDirectorySettingsPersistAndSeparateAddedFromHidden() throws {
+        let suiteName = "BacktraceTests.ClaudeConfig.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let settings = SettingsStore(defaults: defaults)
+        settings.addClaudeConfigDirectory(URL(fileURLWithPath: "/tmp/profiles/.claude-work", isDirectory: true))
+        settings.addClaudeConfigDirectory(URL(fileURLWithPath: "/tmp/profiles/.claude-work", isDirectory: true))
+        XCTAssertEqual(settings.addedClaudeConfigDirectories, ["/tmp/profiles/.claude-work"])
+
+        let restored = SettingsStore(defaults: defaults)
+        XCTAssertEqual(restored.addedClaudeConfigDirectories, ["/tmp/profiles/.claude-work"])
+
+        restored.removeClaudeConfigDirectory(
+            ClaudeConfigDirectory(
+                url: URL(fileURLWithPath: "/tmp/profiles/.claude-work", isDirectory: true),
+                source: .added,
+                isDefault: false
+            )
+        )
+        XCTAssertTrue(restored.addedClaudeConfigDirectories.isEmpty)
+        XCTAssertTrue(restored.hiddenClaudeConfigDirectories.isEmpty)
+
+        // Removing a directory Backtrace resolves on its own hides it instead,
+        // because the next scan would otherwise bring it straight back.
+        let fromEnvironment = ClaudeConfigDirectory(
+            url: URL(fileURLWithPath: "/tmp/profiles/.claude-client", isDirectory: true),
+            source: .environment,
+            isDefault: false
+        )
+        restored.removeClaudeConfigDirectory(fromEnvironment)
+        XCTAssertEqual(
+            SettingsStore(defaults: defaults).hiddenClaudeConfigDirectories,
+            ["/tmp/profiles/.claude-client"]
+        )
+
+        restored.addClaudeConfigDirectory(fromEnvironment.url)
+        XCTAssertTrue(restored.hiddenClaudeConfigDirectories.isEmpty)
+        restored.removeClaudeConfigDirectory(fromEnvironment)
+        restored.restoreHiddenClaudeConfigDirectories()
+        XCTAssertTrue(SettingsStore(defaults: defaults).hiddenClaudeConfigDirectories.isEmpty)
     }
 
     func testGrokProviderHandlesDirectoryKeyedJSONL() throws {
@@ -234,7 +427,13 @@ final class BacktraceCoreTests: XCTestCase {
 
         let result = await SessionScanner().scan()
         let counts = Dictionary(grouping: result.sessions, by: \.assistant).mapValues(\.count)
+        let claudeCounts = Dictionary(
+            grouping: result.sessions.compactMap(\.configDirectory),
+            by: \.name
+        ).mapValues(\.count)
         print("Backtrace live scan: \(result.installations.map(\.kind.displayName)); session counts: \(counts)")
+        print("Claude Code config directories: \(result.claudeConfigDirectories.map { "\($0.name) [\($0.source)] \($0.url.path)" })")
+        print("Claude Code sessions per profile: \(claudeCounts)")
         XCTAssertFalse(result.installations.isEmpty)
         XCTAssertTrue(result.sessions.allSatisfy { !$0.sessionID.isEmpty && !$0.title.isEmpty })
     }
@@ -266,6 +465,18 @@ private final class FixtureDirectory {
         url = FileManager.default.temporaryDirectory
             .appendingPathComponent("BacktraceTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+    }
+
+    /// Writes a Claude Code transcript at `<fixture>/<configDirectory>/projects/-tmp-client/<id>.jsonl`.
+    func writeClaudeSession(id: String, configDirectory: String) throws {
+        let project = url.appendingPathComponent("\(configDirectory)/projects/-tmp-client", isDirectory: true)
+        try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
+        try """
+        {"type":"user","sessionId":"\(id)","cwd":"/tmp/client","gitBranch":"feature/history","timestamp":"2026-07-18T09:00:00.000Z","message":{"content":"Find the session parser bug"}}
+        {"type":"assistant","sessionId":"\(id)","cwd":"/tmp/client","gitBranch":"feature/history","timestamp":"2026-07-18T09:01:00.000Z","message":{"model":"claude-sonnet","content":[{"type":"text","text":"I found it."}]}}
+        {"type":"ai-title","aiTitle":"Generated title","sessionId":"\(id)"}
+        {"type":"custom-title","customTitle":"parser-investigation","sessionId":"\(id)"}
+        """.write(to: project.appendingPathComponent("\(id).jsonl"), atomically: true, encoding: .utf8)
     }
 
     deinit {

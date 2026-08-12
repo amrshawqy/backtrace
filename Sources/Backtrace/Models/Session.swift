@@ -23,6 +23,9 @@ struct AssistantSession: Identifiable, Hashable, Sendable {
     let sourceURL: URL
     let sourceFormat: SessionSourceFormat
     let isArchived: Bool
+    /// Claude Code sessions remember which config directory they came from, so
+    /// the resume command can point Claude Code back at the same one.
+    var configDirectory: ClaudeConfigDirectory? = nil
 
     var id: String { "\(assistant.rawValue):\(sessionID)" }
 
@@ -41,7 +44,12 @@ struct AssistantSession: Identifiable, Hashable, Sendable {
                 launch = "codex resume \(sessionID.shellQuoted)"
             }
         case .claude:
-            launch = "claude --resume \(sessionID.shellQuoted)"
+            // Claude Code reads one config directory at a time, so a session
+            // from a non-default profile only resumes with the variable set.
+            let scope = configDirectory.flatMap { directory in
+                directory.isDefault ? nil : "CLAUDE_CONFIG_DIR=\(directory.url.path.shellQuoted) "
+            } ?? ""
+            launch = "\(scope)claude --resume \(sessionID.shellQuoted)"
         case .grok:
             launch = "grok --resume \(sessionID.shellQuoted)"
         case .openCode:
@@ -60,7 +68,8 @@ struct AssistantSession: Identifiable, Hashable, Sendable {
             gitBranch,
             model,
             sessionID,
-            assistant.displayName
+            assistant.displayName,
+            configDirectory.map(\.name)
         ]
         .compactMap { $0 }
         .joined(separator: " ")
@@ -92,5 +101,6 @@ struct TranscriptPreview: Sendable {
 struct ScanResult: Sendable {
     let installations: [AssistantInstallation]
     let sessions: [AssistantSession]
+    let claudeConfigDirectories: [ClaudeConfigDirectory]
     let warnings: [String]
 }

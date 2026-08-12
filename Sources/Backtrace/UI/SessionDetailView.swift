@@ -162,6 +162,14 @@ struct SessionDetailView: View {
             if let model = session.model, !model.isEmpty {
                 MetadataCard(icon: "cpu", label: "Model", value: model)
             }
+            if let directory = session.configDirectory, !directory.isDefault {
+                MetadataCard(
+                    icon: "person.crop.circle",
+                    label: "Claude Code profile",
+                    value: directory.name,
+                    tooltip: directory.url.path
+                )
+            }
             MetadataCard(icon: "number", label: "Session ID", value: session.sessionID)
             if session.fileSize > 0 {
                 MetadataCard(icon: "doc", label: "Transcript size", value: ByteCountFormatter.string(fromByteCount: session.fileSize, countStyle: .file))
