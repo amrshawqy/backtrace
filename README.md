@@ -85,6 +85,7 @@ Backtrace turns those scattered local histories into one native browser. Find a 
 
 - Automatically detects supported assistants installed in common locations or available through the login shell.
 - Browses Codex, Claude Code, Grok Build, and OpenCode histories in one interface.
+- Reads several Claude Code config directories at once, so separate work and personal profiles stay in one searchable list.
 - Searches titles, prompts, project folders, Git branches, models, and session IDs.
 - Shows project path, started time, last activity, model, transcript size, and available transcript messages.
 - Displays full date, time, and timezone details when hovering over a timestamp.
@@ -111,6 +112,25 @@ Archived Codex sessions are read from `$CODEX_HOME/archived_sessions` or `~/.cod
 
 Session formats are owned by their respective tools and can change between releases. Backtrace's adapters tolerate missing and newly introduced metadata where practical.
 
+### Claude Code profiles
+
+Claude Code reads one config directory at a time, the folder `CLAUDE_CONFIG_DIR` points at. Keeping work and personal setups apart therefore means several directories on disk, and only one of them is visible to Claude Code in any given shell.
+
+Backtrace reads several of them together. It starts from two directories and never looks anywhere else on its own:
+
+1. the default `~/.claude`; and
+2. the directory `CLAUDE_CONFIG_DIR` names, read from a login shell so it is still found when Backtrace is opened from Finder or the Dock.
+
+Every other profile is added explicitly in **Settings → General → Claude Code config directories**. Type the path `CLAUDE_CONFIG_DIR` points at, the folder containing `projects`. The field takes `~/.claude-work`, a full path, or a bare name inside your home folder, and reports what it will read before you commit. Each entry then shows its origin and session count, and any entry can be removed or hidden. A **Claude Code Profiles** sidebar section appears once there is more than one, and profile names are searchable.
+
+Resume commands stay correct across profiles. A session from a non-default directory copies with the variable already set, because Claude Code would otherwise look in the wrong place and report the session as missing:
+
+```bash
+cd '/Users/you/projects/app' && CLAUDE_CONFIG_DIR='/Users/you/.claude-work' claude --resume '<id>'
+```
+
+Config directories are re-read on every refresh, but `CLAUDE_CONFIG_DIR` itself is read once per launch. Restart Backtrace after changing it in your shell profile.
+
 ## Keyboard shortcuts
 
 | Shortcut | Action |
@@ -125,7 +145,7 @@ Backtrace works locally:
 - Session discovery and parsing happen on the Mac.
 - No analytics, telemetry, advertising SDK, account, or cloud service is included.
 - Only a bounded conversation preview is kept in memory.
-- Pinned session IDs, tags, tracked folders, and the tracked-folder filter are stored in macOS user defaults.
+- Pinned session IDs, tags, tracked folders, the tracked-folder filter, and added or hidden Claude Code config directories are stored in macOS user defaults.
 - Copying a resume command writes that command to the system clipboard.
 
 Session transcripts may contain source code, prompts, secrets, or personal information. Do not attach raw histories to public issues. Redact paths, session IDs, credentials, and conversation content before sharing diagnostics.
@@ -222,6 +242,7 @@ Backtrace also checks `~/.local/bin`, `~/bin`, `/opt/homebrew/bin`, `/usr/local/
 
 - Confirm the CLI has created at least one local session.
 - Check the history location in the supported-assistants table.
+- For Claude Code, confirm the profile you are looking for is listed under **Settings → General → Claude Code config directories**, and add it if it is not.
 - If you enabled **Only show sessions in tracked folders**, confirm the session project is inside one of those folders.
 - Refresh with `⌘R` after changing CLI configuration.
 

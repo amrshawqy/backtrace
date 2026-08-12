@@ -6,6 +6,7 @@ import Foundation
 final class SessionStore: ObservableObject {
     @Published private(set) var installations: [AssistantInstallation] = []
     @Published private(set) var sessions: [AssistantSession] = []
+    @Published private(set) var claudeConfigDirectories: [ClaudeConfigDirectory] = []
     @Published private(set) var isScanning = false
     @Published private(set) var lastScan: Date?
     @Published private(set) var warnings: [String] = []
@@ -79,12 +80,21 @@ final class SessionStore: ObservableObject {
     func refresh() async {
         guard !isScanning else { return }
         isScanning = true
-        let result = await scanner.scan()
+        let result = await scanner.scan(
+            addedClaudeConfigDirectories: settings.addedClaudeConfigDirectories,
+            hiddenClaudeConfigDirectories: settings.hiddenClaudeConfigDirectories
+        )
         installations = result.installations
         sessions = result.sessions
+        claudeConfigDirectories = result.claudeConfigDirectories
         warnings = result.warnings
         lastScan = Date()
         isScanning = false
+
+        if case .claudeConfigDirectory(let path) = selection,
+           !claudeConfigDirectories.contains(where: { $0.id == path }) {
+            selection = .all
+        }
 
         if let selectedSessionID, sessions.contains(where: { $0.id == selectedSessionID }) {
             return
@@ -113,6 +123,10 @@ final class SessionStore: ObservableObject {
             guard let path = session.projectPath else { return false }
             return path == folder.path || path.hasPrefix(folder.path + "/")
         }.count
+    }
+
+    func count(in directory: ClaudeConfigDirectory) -> Int {
+        sessions.lazy.filter { $0.configDirectory?.id == directory.id }.count
     }
 
     func count(for tag: SessionTag) -> Int {
@@ -235,6 +249,8 @@ final class SessionStore: ObservableObject {
             tagIDsBySession[session.id]?.contains(id) == true
         case .trackedFolder(let path):
             session.projectPath == path || session.projectPath?.hasPrefix(path + "/") == true
+        case .claudeConfigDirectory(let path):
+            session.configDirectory?.id == path
         }
     }
 

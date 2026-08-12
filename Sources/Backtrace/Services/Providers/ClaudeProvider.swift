@@ -2,27 +2,27 @@ import Foundation
 
 struct ClaudeProvider: SessionProvider {
     let assistant = AssistantKind.claude
-    let roots: [URL]
+    let configDirectories: [ClaudeConfigDirectory]
 
-    init(home: URL) {
-        roots = AssistantKind.claude.defaultHistoryRoots(home: home)
+    init(configDirectories: [ClaudeConfigDirectory]) {
+        self.configDirectories = configDirectories
     }
 
-    init(roots: [URL]) {
-        self.roots = roots
+    init(home: URL) {
+        configDirectories = ClaudeConfigDirectories.resolve(home: home)
     }
 
     func sessions() throws -> [AssistantSession] {
-        roots.flatMap { root in
+        configDirectories.flatMap { directory in
             FileMetadata.files(
-                below: root,
+                below: directory.projectsRoot,
                 extensions: ["jsonl"],
                 excludingPathComponents: ["subagents"]
-            ).compactMap { try? session(at: $0) }
+            ).compactMap { try? session(at: $0, in: directory) }
         }
     }
 
-    private func session(at url: URL) throws -> AssistantSession? {
+    private func session(at url: URL, in directory: ClaudeConfigDirectory) throws -> AssistantSession? {
         let objects = try JSONLReader.sampledObjects(at: url)
         let messageObjects = objects.filter {
             let type = $0["type"] as? String
@@ -70,7 +70,8 @@ struct ClaudeProvider: SessionProvider {
             fileSize: file.size,
             sourceURL: url,
             sourceFormat: .claudeJSONL,
-            isArchived: false
+            isArchived: false,
+            configDirectory: directory
         )
     }
 }

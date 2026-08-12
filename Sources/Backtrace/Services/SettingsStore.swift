@@ -45,12 +45,17 @@ final class SettingsStore: ObservableObject {
         didSet { defaults.set(appearance.rawValue, forKey: Keys.appearance) }
     }
 
+    @Published private(set) var addedClaudeConfigDirectories: [String] = []
+    @Published private(set) var hiddenClaudeConfigDirectories: Set<String> = []
+
     private let defaults: UserDefaults
 
     private enum Keys {
         static let trackedFolders = "trackedFolders"
         static let restrictToTrackedFolders = "restrictToTrackedFolders"
         static let appearance = "appearance"
+        static let addedClaudeConfigDirectories = "addedClaudeConfigDirectories"
+        static let hiddenClaudeConfigDirectories = "hiddenClaudeConfigDirectories"
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -61,6 +66,8 @@ final class SettingsStore: ObservableObject {
            let values = try? JSONDecoder().decode([TrackedFolder].self, from: data) {
             trackedFolders = values
         }
+        addedClaudeConfigDirectories = defaults.stringArray(forKey: Keys.addedClaudeConfigDirectories) ?? []
+        hiddenClaudeConfigDirectories = Set(defaults.stringArray(forKey: Keys.hiddenClaudeConfigDirectories) ?? [])
     }
 
     func chooseAndAddFolder() {
@@ -87,6 +94,38 @@ final class SettingsStore: ObservableObject {
     func removeFolder(_ folder: TrackedFolder) {
         trackedFolders.removeAll { $0.id == folder.id }
         persist()
+    }
+
+    /// Takes a path already checked by `ClaudeConfigDirectories.validate`.
+    func addClaudeConfigDirectory(_ url: URL) {
+        let path = url.standardizedFileURL.path
+        // A directory removed earlier is un-hidden rather than listed twice.
+        hiddenClaudeConfigDirectories.remove(path)
+        if !addedClaudeConfigDirectories.contains(path) {
+            addedClaudeConfigDirectories.append(path)
+        }
+        persistClaudeConfigDirectories()
+    }
+
+    /// Removing an added directory forgets it; removing an automatically
+    /// discovered one hides it, because discovery would find it again.
+    func removeClaudeConfigDirectory(_ directory: ClaudeConfigDirectory) {
+        let path = directory.url.standardizedFileURL.path
+        addedClaudeConfigDirectories.removeAll { $0 == path }
+        if directory.source != .added {
+            hiddenClaudeConfigDirectories.insert(path)
+        }
+        persistClaudeConfigDirectories()
+    }
+
+    func restoreHiddenClaudeConfigDirectories() {
+        hiddenClaudeConfigDirectories.removeAll()
+        persistClaudeConfigDirectories()
+    }
+
+    private func persistClaudeConfigDirectories() {
+        defaults.set(addedClaudeConfigDirectories, forKey: Keys.addedClaudeConfigDirectories)
+        defaults.set(Array(hiddenClaudeConfigDirectories), forKey: Keys.hiddenClaudeConfigDirectories)
     }
 
     private func persist() {
