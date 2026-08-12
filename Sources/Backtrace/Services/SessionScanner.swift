@@ -1,6 +1,13 @@
 import Foundation
 
-struct SessionScanner: Sendable {
+protocol SessionScanning: Sendable {
+    func scan(
+        addedClaudeConfigDirectories: [String],
+        hiddenClaudeConfigDirectories: Set<String>
+    ) async -> ScanResult
+}
+
+struct SessionScanner: SessionScanning, Sendable {
     let home: URL
 
     init(home: URL = FileManager.default.homeDirectoryForCurrentUser) {

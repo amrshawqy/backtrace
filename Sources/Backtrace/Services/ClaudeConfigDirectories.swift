@@ -1,13 +1,15 @@
 import Foundation
 
-/// Environment variables read from a login shell.
+/// Environment variables read from an interactive login shell.
 ///
 /// An app launched from Finder or the Dock inherits none of the shell
 /// environment, so `CLAUDE_CONFIG_DIR` and `CODEX_HOME` are invisible unless we
-/// ask a login shell for them. Resolved once per launch because the shell spawn
-/// costs a few hundred milliseconds and scans repeat every two minutes.
+/// ask an interactive login shell for them. Interactive mode also reads
+/// `.zshrc`, where many people define these variables. Resolved once per launch
+/// because shell startup is relatively expensive and scans repeat every two
+/// minutes.
 enum LoginShellEnvironment {
-    static let values: [String: String] = load()
+    static let values: [String: String] = loadFromShell()
 
     static func value(for name: String) -> String? {
         if let inherited = ProcessInfo.processInfo.environment[name], !inherited.isEmpty {
@@ -16,14 +18,19 @@ enum LoginShellEnvironment {
         return values[name]
     }
 
-    private static func load() -> [String: String] {
+    static func loadFromShell(
+        extraEnvironment: [String: String] = [:],
+        currentDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> [String: String] {
         let names = ["CLAUDE_CONFIG_DIR", "CODEX_HOME"]
         let marker = "BACKTRACE_ENV "
         let command = "for name in \(names.joined(separator: " ")); "
             + #"do print -r -- "\#(marker)$name=${(P)name}"; done"#
         guard let result = ProcessRunner.run(
             executable: URL(fileURLWithPath: "/bin/zsh"),
-            arguments: ["-lc", command]
+            arguments: ["-lic", command],
+            currentDirectory: currentDirectory,
+            extraEnvironment: extraEnvironment
         ), result.status == 0 else { return [:] }
 
         var found: [String: String] = [:]
@@ -133,8 +140,13 @@ enum ClaudeConfigDirectories {
         }
         guard !text.isEmpty else { return "" }
 
-        let expanded = (text as NSString).expandingTildeInPath
-        guard !expanded.hasPrefix("/") else { return expanded }
-        return home.appendingPathComponent(expanded).path
+        if text == "~" {
+            return home.path
+        }
+        if text.hasPrefix("~/") {
+            return home.appendingPathComponent(String(text.dropFirst(2))).path
+        }
+        guard !text.hasPrefix("/") else { return text }
+        return home.appendingPathComponent(text).path
     }
 }

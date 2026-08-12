@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/amrshawqy/backtrace/releases/download/v0.1.4/Backtrace.dmg"><strong>Download for macOS</strong></a>
+  <a href="https://github.com/amrshawqy/backtrace/releases/download/v0.2.0/Backtrace.dmg"><strong>Download for macOS</strong></a>
   ·
   <a href="#build-from-source">Build from source</a>
   ·
@@ -30,11 +30,11 @@
 
 ## Download and install
 
-The current release is **Backtrace 0.1.4 (build 6)** for Apple Silicon Macs running macOS 14 or later.
+The current release is **Backtrace 0.2.0 (build 7)** for Apple Silicon Macs running macOS 14 or later.
 
 | Download | Use |
 | --- | --- |
-| [**Backtrace.dmg**](https://github.com/amrshawqy/backtrace/releases/download/v0.1.4/Backtrace.dmg) | Recommended drag-to-install disk image |
+| [**Backtrace.dmg**](https://github.com/amrshawqy/backtrace/releases/download/v0.2.0/Backtrace.dmg) | Recommended drag-to-install disk image |
 | [Backtrace.app](https://github.com/amrshawqy/backtrace/tree/main/dist/Backtrace.app) | App bundle stored in this repository for inspection and reproducibility |
 
 1. Download and open `Backtrace.dmg`.
@@ -44,7 +44,7 @@ The current release is **Backtrace 0.1.4 (build 6)** for Apple Silicon Macs runn
 Release checksum:
 
 ```text
-SHA-256  45ebbe58a506a8d55236021588630c8f344d4b071306b12ab08c5d235724f471  Backtrace.dmg
+SHA-256  5ae6c51cefe6908538b615ae3bfcde85158977c17cfce571513c4c1c78903c67  Backtrace.dmg
 ```
 
 Verify it from Terminal with:
@@ -119,7 +119,7 @@ Claude Code reads one config directory at a time, the folder `CLAUDE_CONFIG_DIR`
 Backtrace reads several of them together. It starts from two directories and never looks anywhere else on its own:
 
 1. the default `~/.claude`; and
-2. the directory `CLAUDE_CONFIG_DIR` names, read from a login shell so it is still found when Backtrace is opened from Finder or the Dock.
+2. the directory `CLAUDE_CONFIG_DIR` names, read from an interactive login shell so values configured in `.zprofile` or `.zshrc` are still found when Backtrace is opened from Finder or the Dock.
 
 Every other profile is added explicitly in **Settings → General → Claude Code config directories**. Type the path `CLAUDE_CONFIG_DIR` points at, the folder containing `projects`. The field takes `~/.claude-work`, a full path, or a bare name inside your home folder, and reports what it will read before you commit. Each entry then shows its origin and session count, and any entry can be removed or hidden. A **Claude Code Profiles** sidebar section appears once there is more than one, and profile names are searchable.
 

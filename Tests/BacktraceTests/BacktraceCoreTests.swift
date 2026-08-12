@@ -151,6 +151,50 @@ final class BacktraceCoreTests: XCTestCase {
         XCTAssertTrue(work.searchableText.contains("work"))
     }
 
+    func testClaudeSessionsWithTheSameIDRemainDistinctAcrossProfiles() throws {
+        let fixture = try FixtureDirectory()
+        let id = "a9c1570b-8550-45ca-b388-8417a7a8bd16"
+        try fixture.writeClaudeSession(id: id, configDirectory: ".claude")
+        try fixture.writeClaudeSession(id: id, configDirectory: ".claude-work")
+
+        let provider = ClaudeProvider(configDirectories: [
+            ClaudeConfigDirectory(
+                url: fixture.url.appendingPathComponent(".claude", isDirectory: true),
+                source: .defaultLocation,
+                isDefault: true
+            ),
+            ClaudeConfigDirectory(
+                url: fixture.url.appendingPathComponent(".claude-work", isDirectory: true),
+                source: .added,
+                isDefault: false
+            )
+        ])
+
+        let sessions = try provider.sessions()
+        XCTAssertEqual(sessions.count, 2)
+        XCTAssertEqual(Set(sessions.map(\.id)).count, 2)
+        XCTAssertEqual(sessions.first(where: { $0.configDirectory?.isDefault == true })?.id, "claude:\(id)")
+    }
+
+    func testLoginShellEnvironmentReadsInteractiveZshConfiguration() throws {
+        let fixture = try FixtureDirectory()
+        let claudeDirectory = fixture.url.appendingPathComponent(".claude-work", isDirectory: true)
+        let codexDirectory = fixture.url.appendingPathComponent(".codex-work", isDirectory: true)
+        let zshrc = fixture.url.appendingPathComponent(".zshrc")
+        try """
+        export CLAUDE_CONFIG_DIR=\(claudeDirectory.path.shellQuoted)
+        export CODEX_HOME=\(codexDirectory.path.shellQuoted)
+        """.write(to: zshrc, atomically: true, encoding: .utf8)
+
+        let values = LoginShellEnvironment.loadFromShell(
+            extraEnvironment: ["ZDOTDIR": fixture.url.path],
+            currentDirectory: fixture.url
+        )
+
+        XCTAssertEqual(values["CLAUDE_CONFIG_DIR"], claudeDirectory.path)
+        XCTAssertEqual(values["CODEX_HOME"], codexDirectory.path)
+    }
+
     func testClaudeConfigDirectoriesOnlyResolveTheDefaultAndExplicitlyAddedPaths() throws {
         let fixture = try FixtureDirectory()
         let manager = FileManager.default
@@ -219,21 +263,12 @@ final class BacktraceCoreTests: XCTestCase {
             "\"\(work.path)\"",
             // Pointing at the transcripts resolves back to their parent.
             "\(work.path)/projects",
-            // Bare names and tildes resolve inside the home directory.
-            ".claude-work"
+            // Bare names and tildes resolve inside the supplied home directory.
+            ".claude-work",
+            "~/.claude-work"
         ] {
             XCTAssertEqual(validate(input), .accepted(work, note: nil), "input: \(input)")
         }
-
-        let real = ClaudeConfigDirectories.validate(
-            "~/.claude",
-            home: FileManager.default.homeDirectoryForCurrentUser,
-            existing: []
-        )
-        XCTAssertEqual(
-            real.url?.path,
-            FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude").path
-        )
     }
 
     func testClaudeConfigDirectoryPathInputExplainsEveryRejection() throws {
@@ -316,6 +351,30 @@ final class BacktraceCoreTests: XCTestCase {
         restored.removeClaudeConfigDirectory(fromEnvironment)
         restored.restoreHiddenClaudeConfigDirectories()
         XCTAssertTrue(SettingsStore(defaults: defaults).hiddenClaudeConfigDirectories.isEmpty)
+    }
+
+    @MainActor
+    func testRefreshQueuesConfigChangesMadeDuringAnActiveScan() async throws {
+        let suiteName = "BacktraceTests.RefreshQueue.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let settings = SettingsStore(defaults: defaults)
+        let scanner = PausingSessionScanner()
+        let store = SessionStore(settings: settings, scanner: scanner, defaults: defaults)
+        let initialRefresh = Task { await store.refresh() }
+        await scanner.waitUntilFirstScanStarts()
+
+        let added = URL(fileURLWithPath: "/tmp/profiles/.claude-work", isDirectory: true)
+        settings.addClaudeConfigDirectory(added)
+        await store.refresh()
+        await scanner.resumeFirstScan()
+        await initialRefresh.value
+
+        let snapshots = await scanner.addedDirectorySnapshots()
+        XCTAssertEqual(snapshots, [[], [added.path]])
+        XCTAssertEqual(store.claudeConfigDirectories.map(\.url.path), [added.path])
+        XCTAssertFalse(store.isScanning)
     }
 
     func testGrokProviderHandlesDirectoryKeyedJSONL() throws {
@@ -455,6 +514,53 @@ final class BacktraceCoreTests: XCTestCase {
             sourceFormat: .codexJSONL,
             isArchived: false
         )
+    }
+}
+
+private actor PausingSessionScanner: SessionScanning {
+    private var addedSnapshots: [[String]] = []
+    private var firstScanContinuation: CheckedContinuation<Void, Never>?
+
+    func scan(
+        addedClaudeConfigDirectories: [String],
+        hiddenClaudeConfigDirectories: Set<String>
+    ) async -> ScanResult {
+        addedSnapshots.append(addedClaudeConfigDirectories)
+        if addedSnapshots.count == 1 {
+            await withCheckedContinuation { continuation in
+                firstScanContinuation = continuation
+            }
+        }
+
+        let directories = addedClaudeConfigDirectories.map { path in
+            ClaudeConfigDirectory(
+                url: URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL,
+                source: .added,
+                isDefault: false
+            )
+        }
+        return ScanResult(
+            installations: [],
+            sessions: [],
+            claudeConfigDirectories: directories,
+            warnings: []
+        )
+    }
+
+    func waitUntilFirstScanStarts() async {
+        while addedSnapshots.isEmpty {
+            await Task.yield()
+        }
+    }
+
+    func resumeFirstScan() {
+        let continuation = firstScanContinuation
+        firstScanContinuation = nil
+        continuation?.resume()
+    }
+
+    func addedDirectorySnapshots() -> [[String]] {
+        addedSnapshots
     }
 }
 
