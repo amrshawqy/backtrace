@@ -119,7 +119,7 @@ Claude Code reads one config directory at a time, the folder `CLAUDE_CONFIG_DIR`
 Backtrace reads several of them together. It starts from two directories and never looks anywhere else on its own:
 
 1. the default `~/.claude`; and
-2. the directory `CLAUDE_CONFIG_DIR` names, read from a login shell so it is still found when Backtrace is opened from Finder or the Dock.
+2. the directory `CLAUDE_CONFIG_DIR` names, read from an interactive login shell so values configured in `.zprofile` or `.zshrc` are still found when Backtrace is opened from Finder or the Dock.
 
 Every other profile is added explicitly in **Settings → General → Claude Code config directories**. Type the path `CLAUDE_CONFIG_DIR` points at, the folder containing `projects`. The field takes `~/.claude-work`, a full path, or a bare name inside your home folder, and reports what it will read before you commit. Each entry then shows its origin and session count, and any entry can be removed or hidden. A **Claude Code Profiles** sidebar section appears once there is more than one, and profile names are searchable.
 

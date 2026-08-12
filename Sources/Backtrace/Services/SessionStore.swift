@@ -16,7 +16,8 @@ final class SessionStore: ObservableObject {
     @Published private(set) var tags: [SessionTag] = []
 
     let settings: SettingsStore
-    private let scanner: SessionScanner
+    private let scanner: any SessionScanning
+    private var refreshRequested = false
     private var transcriptCache: [String: TranscriptPreview] = [:]
     private var favoriteIDs: Set<String>
     private var tagIDsBySession: [String: Set<UUID>] = [:]
@@ -35,7 +36,7 @@ final class SessionStore: ObservableObject {
 
     init(
         settings: SettingsStore,
-        scanner: SessionScanner = SessionScanner(),
+        scanner: any SessionScanning = SessionScanner(),
         defaults: UserDefaults = .standard
     ) {
         self.settings = settings
@@ -78,28 +79,37 @@ final class SessionStore: ObservableObject {
     }
 
     func refresh() async {
-        guard !isScanning else { return }
+        guard !isScanning else {
+            refreshRequested = true
+            return
+        }
         isScanning = true
-        let result = await scanner.scan(
-            addedClaudeConfigDirectories: settings.addedClaudeConfigDirectories,
-            hiddenClaudeConfigDirectories: settings.hiddenClaudeConfigDirectories
-        )
+        repeat {
+            refreshRequested = false
+            let result = await scanner.scan(
+                addedClaudeConfigDirectories: settings.addedClaudeConfigDirectories,
+                hiddenClaudeConfigDirectories: settings.hiddenClaudeConfigDirectories
+            )
+            apply(result)
+        } while refreshRequested
+        isScanning = false
+    }
+
+    private func apply(_ result: ScanResult) {
         installations = result.installations
         sessions = result.sessions
         claudeConfigDirectories = result.claudeConfigDirectories
         warnings = result.warnings
         lastScan = Date()
-        isScanning = false
 
         if case .claudeConfigDirectory(let path) = selection,
            !claudeConfigDirectories.contains(where: { $0.id == path }) {
             selection = .all
         }
 
-        if let selectedSessionID, sessions.contains(where: { $0.id == selectedSessionID }) {
-            return
+        if selectedSessionID == nil || !sessions.contains(where: { $0.id == selectedSessionID }) {
+            selectedSessionID = visibleSessions.first?.id
         }
-        selectedSessionID = visibleSessions.first?.id
     }
 
     func transcript(for session: AssistantSession) async -> TranscriptPreview {

@@ -27,7 +27,15 @@ struct AssistantSession: Identifiable, Hashable, Sendable {
     /// the resume command can point Claude Code back at the same one.
     var configDirectory: ClaudeConfigDirectory? = nil
 
-    var id: String { "\(assistant.rawValue):\(sessionID)" }
+    var id: String {
+        let base = "\(assistant.rawValue):\(sessionID)"
+        // Preserve IDs for the default profile so existing favorites and tags
+        // survive, while keeping copied sessions in other profiles distinct.
+        guard assistant == .claude,
+              let configDirectory,
+              !configDirectory.isDefault else { return base }
+        return "\(base):\(configDirectory.id)"
+    }
 
     var projectName: String {
         guard let projectPath, !projectPath.isEmpty else { return "Unknown project" }
