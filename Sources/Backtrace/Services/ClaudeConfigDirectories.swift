@@ -140,8 +140,13 @@ enum ClaudeConfigDirectories {
         }
         guard !text.isEmpty else { return "" }
 
-        let expanded = (text as NSString).expandingTildeInPath
-        guard !expanded.hasPrefix("/") else { return expanded }
-        return home.appendingPathComponent(expanded).path
+        if text == "~" {
+            return home.path
+        }
+        if text.hasPrefix("~/") {
+            return home.appendingPathComponent(String(text.dropFirst(2))).path
+        }
+        guard !text.hasPrefix("/") else { return text }
+        return home.appendingPathComponent(text).path
     }
 }

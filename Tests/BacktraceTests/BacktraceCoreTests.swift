@@ -263,21 +263,12 @@ final class BacktraceCoreTests: XCTestCase {
             "\"\(work.path)\"",
             // Pointing at the transcripts resolves back to their parent.
             "\(work.path)/projects",
-            // Bare names and tildes resolve inside the home directory.
-            ".claude-work"
+            // Bare names and tildes resolve inside the supplied home directory.
+            ".claude-work",
+            "~/.claude-work"
         ] {
             XCTAssertEqual(validate(input), .accepted(work, note: nil), "input: \(input)")
         }
-
-        let real = ClaudeConfigDirectories.validate(
-            "~/.claude",
-            home: FileManager.default.homeDirectoryForCurrentUser,
-            existing: []
-        )
-        XCTAssertEqual(
-            real.url?.path,
-            FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude").path
-        )
     }
 
     func testClaudeConfigDirectoryPathInputExplainsEveryRejection() throws {

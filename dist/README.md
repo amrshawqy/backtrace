@@ -19,8 +19,8 @@ This directory intentionally remains under version control so users can inspect 
 SHA-256:
 
 ```text
-c485a6b3f73bdf9f0ab4c8b09d58eca9360dafdf8674adb09724c4800fca6692  Backtrace.dmg
-2f9f37a96f3f33b43cb24970235c06d09cb775cf258dceaf1fd19000fcba2a13  Backtrace.app/Contents/MacOS/Backtrace
+5ae6c51cefe6908538b615ae3bfcde85158977c17cfce571513c4c1c78903c67  Backtrace.dmg
+b6ca2dbb71e824ae6c47503c37f88d9cdc58999eb0fb89656f96e15b5106c61c  Backtrace.app/Contents/MacOS/Backtrace
 ```
 
 Release executables are stripped before signing so compiler metadata does not expose paths from the build machine.

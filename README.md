@@ -44,7 +44,7 @@ The current release is **Backtrace 0.2.0 (build 7)** for Apple Silicon Macs runn
 Release checksum:
 
 ```text
-SHA-256  c485a6b3f73bdf9f0ab4c8b09d58eca9360dafdf8674adb09724c4800fca6692  Backtrace.dmg
+SHA-256  5ae6c51cefe6908538b615ae3bfcde85158977c17cfce571513c4c1c78903c67  Backtrace.dmg
 ```
 
 Verify it from Terminal with:
